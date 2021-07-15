@@ -14,38 +14,36 @@
  * limitations under the License.
  */
 
-package org.smartregister.fhircore.api
+package org.smartregister.fhircore.data
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
-import ca.uhn.fhir.context.FhirContext
+import androidx.work.WorkerParameters
+import androidx.work.impl.utils.taskexecutor.WorkManagerTaskExecutor
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import org.robolectric.annotation.Config
+import org.smartregister.fhircore.FhirApplication
 import org.smartregister.fhircore.RobolectricTest
 import org.smartregister.fhircore.shadow.FhirApplicationShadow
 
 @Config(shadows = [FhirApplicationShadow::class])
-class HapiFhirServiceTest : RobolectricTest() {
-  private var mockService: HapiFhirService? = null
-  private val context = ApplicationProvider.getApplicationContext<Context>()
-  private val parser = FhirContext.forR4().newJsonParser()
+class FhirPeriodicSyncWorkerTest : RobolectricTest() {
+
+  private lateinit var fhirPeriodicSyncWorker: FhirPeriodicSyncWorker
 
   @Before
   fun setUp() {
-    mockService = mockk()
 
-    mockkObject(HapiFhirService)
+    val workerParam = mockk<WorkerParameters>()
+    every { workerParam.taskExecutor } returns WorkManagerTaskExecutor(mockk())
 
-    every { HapiFhirService.create(parser, context) } returns mockService!!
+    fhirPeriodicSyncWorker = FhirPeriodicSyncWorker(FhirApplication.getContext(), workerParam)
   }
 
   @Test
-  fun testHapiFhirServiceIsCreated() {
-    Assert.assertNotNull(HapiFhirService.create(parser, context))
+  fun testGetFhirEngineShouldReturnNonNullFhirEngine() {
+    Assert.assertNotNull(fhirPeriodicSyncWorker.getFhirEngine())
   }
 }
