@@ -48,7 +48,6 @@ import org.smartregister.fhircore.engine.configuration.app.ConfigService
 import org.smartregister.fhircore.engine.ui.register.model.RegisterFilterType
 
 @HiltAndroidTest
-@Ignore("Failing on CI with a MockKException")
 class PatientRegisterFragmentTest : RobolectricTest() {
 
   private lateinit var registerFragment: PatientRegisterFragment

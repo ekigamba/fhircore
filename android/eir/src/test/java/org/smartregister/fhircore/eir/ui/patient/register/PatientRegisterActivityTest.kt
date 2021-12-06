@@ -54,7 +54,6 @@ import org.smartregister.fhircore.engine.configuration.app.ConfigService
 import org.smartregister.fhircore.engine.ui.register.model.SideMenuOption
 
 @HiltAndroidTest
-@Ignore("Failing on CI with a MockKException")
 class PatientRegisterActivityTest : ActivityRobolectricTest() {
 
   @get:Rule val hiltAndroidRule = HiltAndroidRule(this)
