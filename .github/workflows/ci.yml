@@ -67,8 +67,14 @@ jobs:
         working-directory: android
          
       - name: Run EIR unit tests with Gradle
-        run: ./gradlew :eir:jacocoTestReport -x testReleaseUnitTest --stacktrace
+        run: ./gradlew :eir:jacocoTestReport -x testReleaseUnitTest --stacktrace || true
         working-directory: android
+
+      - name: Start SSH session
+        uses: luchihoratiu/debug-via-ssh@main
+        with:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          SSH_PASS: ${{ secrets.SSH_PASS }}
 
       - name: Upload EIR Test Report to codecov
         working-directory: android
