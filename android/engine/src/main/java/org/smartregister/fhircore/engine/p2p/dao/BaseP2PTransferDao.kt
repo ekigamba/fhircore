@@ -115,14 +115,22 @@ constructor(
     }
   }
 
-  suspend fun countTotalRecordsForSync(highestRecordIdMap: HashMap<String, Long>): Long {
+  suspend fun countTotalRecordsForSync(highestRecordIdMap: HashMap<String, Long>, resourceIdsForLastUpdatedTimestamps: HashMap<String, List<String>>): Long {
     var recordCount: Long = 0
 
     getDataTypes().forEach {
       it.name.resourceClassType().let { classType ->
         val lastRecordId = highestRecordIdMap[it.name] ?: 0L
-        val searchCount = getSearchObjectForCount(lastRecordId, classType)
-        recordCount += fhirEngine.count(searchCount)
+
+        if (highestRecordIdMap[it.name] == null || resourceIdsForLastUpdatedTimestamps.isEmpty()) {
+          val searchCount = getSearchObjectForCount(lastRecordId, classType)
+          recordCount += fhirEngine.count(searchCount)
+        } else {
+          val searchQuery = SearchQuery("", emptyList())
+          // TODO: ADD CUSTOM QUERY HERE
+          val searchCount = getSearchObjectForCount(0, classType)
+          recordCount += fhirEngine.count(searchCount)
+        }
       }
     }
     return recordCount

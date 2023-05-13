@@ -40,8 +40,8 @@ constructor(
 
   override fun getP2PDataTypes(): TreeSet<DataType> = getDataTypes()
 
-  override fun getTotalRecordCount(highestRecordIdMap: HashMap<String, Long>): Long {
-    return runBlocking { countTotalRecordsForSync(highestRecordIdMap) }
+  override fun getTotalRecordCount(highestRecordIdMap: HashMap<String, Long>, resourceIdsForLastUpdatedTimestamps: HashMap<String, List<String>>): Long {
+    return runBlocking { countTotalRecordsForSync(highestRecordIdMap, resourceIdsForLastUpdatedTimestamps) }
   }
 
   override fun getJsonData(
