@@ -17,11 +17,19 @@
 package org.smartregister.fhircore.engine.p2p.dao
 
 import androidx.annotation.NonNull
+import ca.uhn.fhir.rest.gclient.DateClientParam
+import ca.uhn.fhir.rest.param.ParamPrefixEnum
 import com.google.android.fhir.FhirEngine
 import com.google.android.fhir.logicalId
+import com.google.android.fhir.search.Search
+import com.google.android.fhir.search.search
+import com.google.android.fhir.sync.SyncDataParams
+import java.util.Date
 import java.util.TreeSet
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
+import org.hl7.fhir.r4.model.DateTimeType
+import org.hl7.fhir.r4.model.Resource
 import org.json.JSONArray
 import org.smartregister.fhircore.engine.configuration.ConfigurationRegistry
 import org.smartregister.fhircore.engine.data.local.DefaultRepository
@@ -59,4 +67,30 @@ constructor(
     Timber.e("max last updated is $maxLastUpdated")
     return maxLastUpdated
   }
+
+  override suspend fun getResourceIds(resourceType: String, lastUpdated: Long): List<String> {
+    //return
+    // TODO: THIS IS WHERE THE ERROR IS OCCURRING
+
+    val search = Search(type = resourceType.resourceClassType().newInstance().resourceType).apply {
+      filter(
+        DateClientParam(SyncDataParams.LAST_UPDATED_KEY),
+        {
+          value = of(DateTimeType(Date(lastUpdated)))
+          prefix = ParamPrefixEnum.EQUAL
+        }
+      )
+    }
+
+    val resources = fhirEngine.search<Resource>(search)
+
+    val resourceIds = mutableListOf<String>()
+
+    resources.forEach { resource ->
+      resourceIds += resource.logicalId
+    }
+
+    return resourceIds
+  }
+
 }

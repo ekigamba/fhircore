@@ -48,6 +48,7 @@ constructor(
     dataType: DataType,
     lastUpdated: Long,
     batchSize: Int,
+    resourceIdsForLastUpdatedTimestamps: HashMap<String, List<String>>,
     offset: Int
   ): JsonData? {
     // TODO: complete  retrieval of data implementation
@@ -60,7 +61,8 @@ constructor(
           lastRecordUpdatedAt = highestRecordId,
           batchSize = batchSize,
           offset = offset,
-          classType
+          classType,
+          resourceIdsForLastUpdatedTimestamps
         )
       }
     }

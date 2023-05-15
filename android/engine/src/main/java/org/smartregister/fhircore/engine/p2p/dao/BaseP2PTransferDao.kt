@@ -88,9 +88,14 @@ constructor(
     lastRecordUpdatedAt: Long,
     batchSize: Int,
     offset: Int,
-    classType: Class<out Resource>
+    classType: Class<out Resource>,
+    resourceIdsForLastUpdatedTimestamps: HashMap<String, List<String>>
   ): List<Resource> {
     return withContext(dispatcherProvider.io()) {
+      val resourceType = classType.newInstance().resourceType
+      val resourceIds = resourceIdsForLastUpdatedTimestamps[resourceType.name]
+
+      val queryInside = generateResourceIdExclusionQuery(resourceIdsForLastUpdatedTimestamps[resourceType.name])
       val searchQuery =
         SearchQuery(
           """
@@ -102,17 +107,56 @@ constructor(
               ON a.resourceType = c.resourceType AND a.resourceUuid = c.resourceUuid
               WHERE a.resourceUuid IN (
               SELECT resourceUuid FROM DateTimeIndexEntity
-              WHERE resourceType = '${classType.newInstance().resourceType}' AND index_name = '_lastUpdated' AND index_to >= ?
+              WHERE resourceType = '$resourceType' AND index_name = '_lastUpdated' AND index_to >= ?
               )
               AND (b.index_name = '_lastUpdated' OR c.index_name = '_lastUpdated')
+              $queryInside
               ORDER BY c.index_from ASC, a.id ASC
               LIMIT ? OFFSET ?
           """.trimIndent(),
-          listOf(lastRecordUpdatedAt, batchSize, offset)
+
+          if (resourceIds == null || resourceIds.isEmpty()) {
+            listOf(lastRecordUpdatedAt, batchSize, offset)
+          } else {
+            val params = mutableListOf<Any>(lastRecordUpdatedAt)
+            params += lastRecordUpdatedAt
+            resourceIds.forEach {
+              params += it
+            }
+
+            params += batchSize
+            params += offset
+            params
+          }
         )
 
       fhirEngine.search(searchQuery)
     }
+  }
+
+  fun generateResourceIdExclusionQuery(
+    resourceIds: List<String>?
+  ): String {
+    if (resourceIds == null) {
+      return ""
+    }
+
+    val resourceIdPlaceholders = generateQueryParamPlaceholders(resourceIds.size)
+    return "AND NOT (b.index_to = ? AND a.resourceId IN ($resourceIdPlaceholders))"
+  }
+
+  fun generateQueryParamPlaceholders(size: Int) : String {
+    var resourceIdPlaceholders = ""
+
+    for (i in 1..size) {
+      resourceIdPlaceholders += "?"
+
+      if (i < size) {
+        resourceIdPlaceholders += ", "
+      }
+    }
+
+    return resourceIdPlaceholders
   }
 
   suspend fun countTotalRecordsForSync(highestRecordIdMap: HashMap<String, Long>, resourceIdsForLastUpdatedTimestamps: HashMap<String, List<String>>): Long {
@@ -121,23 +165,45 @@ constructor(
     getDataTypes().forEach {
       it.name.resourceClassType().let { classType ->
         val lastRecordId = highestRecordIdMap[it.name] ?: 0L
+        val resourceType = classType.newInstance().resourceType
+        val resourceIds = resourceIdsForLastUpdatedTimestamps[it.name]
 
-        if (highestRecordIdMap[it.name] == null || resourceIdsForLastUpdatedTimestamps.isEmpty()) {
-          val searchCount = getSearchObjectForCount(lastRecordId, classType)
+        // TODO: Confirm that resourceIds cannot be null here
+        if (highestRecordIdMap[it.name] == null || resourceIds == null || resourceIds.isEmpty()) {
+          val searchCount = getSearchObjectForCount(0, resourceType)
           recordCount += fhirEngine.count(searchCount)
         } else {
-          val searchQuery = SearchQuery("", emptyList())
-          // TODO: ADD CUSTOM QUERY HERE
-          val searchCount = getSearchObjectForCount(0, classType)
+          val searchCount = getSearchObjectForCount(lastRecordId, resourceType)
           recordCount += fhirEngine.count(searchCount)
+
+          val resourceIdPlaceholders = generateQueryParamPlaceholders(resourceIds.size)
+          val params = mutableListOf(resourceType.name, resourceType.name, "_lastUpdated", lastRecordId)
+
+          resourceIds.forEach { resourceId ->
+            params += resourceId
+          }
+
+          val searchQuery = SearchQuery("""
+            SELECT COUNT(*)
+            FROM ResourceEntity a
+            WHERE a.resourceType = ?
+            AND a.resourceUuid IN (
+            SELECT resourceUuid FROM DateTimeIndexEntity
+            WHERE resourceType = ? AND index_name = ? AND index_to = ?)
+            AND a.resourceId NOT IN ($resourceIdPlaceholders)
+          """.trimIndent(),
+            params
+          )
+
+          recordCount += fhirEngine.count(searchQuery)
         }
       }
     }
     return recordCount
   }
 
-  fun getSearchObjectForCount(lastRecordUpdatedAt: Long, classType: Class<out Resource>): Search {
-    return Search(type = classType.newInstance().resourceType).apply {
+  fun getSearchObjectForCount(lastRecordUpdatedAt: Long, resourceType: ResourceType): Search {
+    return Search(type = resourceType).apply {
       filter(
         DateClientParam(SyncDataParams.LAST_UPDATED_KEY),
         {
